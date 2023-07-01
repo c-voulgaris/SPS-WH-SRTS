@@ -1,0 +1,503 @@
+---
+title: "Somerville K-8 Schools and Students"
+output: 
+  tint::tintHtml
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+options(java.parameters = "-Xmx2G")
+
+library(tidyverse)
+library(sf)
+library(tidycensus)
+library(tigris)
+library(here)
+library(ggspatial)
+library(ggthemes)
+library(ggnewscale)
+library(r5r)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+tract_vars <- c(pov_gk = "B14006_005",
+                pov_g1_4 = "B14006_006",
+                pov_g5_8 = "B14006_007",
+                no_pov_gk = "B14006_015",
+                no_pov_g1_4 = "B14006_016",
+                no_pov_g5_8 = "B14006_017")
+
+somerville <- places(state = "MA") |>
+  dplyr::filter(GEOID == "2562535") |>
+  st_transform("WGS84")
+
+tract_centers <- here("tract_centroids.csv") |>
+  read_csv() |>
+  st_as_sf(coords = c("LONGITUDE", "LATITUDE"),
+           crs = "WGS84") |>
+  st_filter(somerville) |>
+  mutate(GEOID = paste0(STATEFP, COUNTYFP, TRACTCE))
+
+tracts <- get_acs(geography = "tract",
+                  state = "MA",
+                  county = "Middlesex",
+                  variables = tract_vars,
+                  geometry = TRUE,
+                  output = "wide") |>
+  st_transform("WGS84") |>
+  filter(GEOID %in% tract_centers$GEOID) |>
+  mutate(pov_total = pov_gkE +
+                     pov_g1_4E +
+                     pov_g5_8E,
+         no_pov_total = no_pov_gkE +
+                        no_pov_g1_4E +
+                        no_pov_g5_8E) |>
+  erase_water()
+
+pov_tract_points <- st_as_sf(
+  st_sample(tracts, size = tracts$pov_total)) |>
+  mutate(poverty = TRUE)
+
+no_pov_tract_points <- st_as_sf(
+  st_sample(tracts, size = tracts$no_pov_total)) |>
+  mutate(poverty = FALSE)
+
+inc_points <- rbind(pov_tract_points, no_pov_tract_points)
+
+schools <- tibble(school = factor(c("WHCIS (115 Sycamore Street)",
+                                    "Hypothetical WHCIS at 8 Bonair Street",
+                                    "Hypothetical WHCIS at 554 Broadway",
+                             rep("Other SPS school serving K-5 students", 6)),
+                             levels = c("WHCIS (115 Sycamore Street)",
+                                        "Hypothetical WHCIS at 8 Bonair Street",
+                                    "Hypothetical WHCIS at 554 Broadway",
+                                        "Other SPS school serving K-5 students")),
+                  lat = c(42.391501258379805,
+                          42.3876187927341, 
+                          42.397961975144824, 
+                          42.37905427619121,
+                          42.39744670040332, 
+                          42.397431825014976, 
+                          42.38584202754295, 
+                          42.38924933782342, 
+                          42.406118297446874),
+                  lon = c(-71.09888308341662,
+                          -71.08720578602485,
+                          -71.10724327216819,
+                          -71.09860349311977,
+                          -71.09547133152927,
+                          -71.11412655504013,
+                          -71.08622473784972,
+                          -71.11555456799908,
+                          -71.12633659736886)) |>
+  st_as_sf(coords = c("lon", "lat"), crs = "WGS84")
+
+bg_vars <- c(nh_white_k = "B14007H_004",
+             nh_white_1 = "B14007H_005",
+             nh_white_2 = "B14007H_006",
+             nh_white_3 = "B14007H_007",
+             nh_white_4 = "B14007H_008",
+             nh_white_5 = "B14007H_009",
+             nh_white_6 = "B14007H_010",
+             nh_white_7 = "B14007H_011",
+             nh_white_8 = "B14007H_012",
+             total_k = "B14007_004",
+             total_1 = "B14007_005",
+             total_2 = "B14007_006",
+             total_3 = "B14007_007",
+             total_4 = "B14007_008",
+             total_5 = "B14007_009",
+             total_6 = "B14007_010",
+             total_7 = "B14007_011",
+             total_8 = "B14007_012")
+
+bg_centers <- here("bg_centroids.csv") |>
+  read_csv() |>
+  st_as_sf(coords = c("LONGITUDE", "LATITUDE"),
+           crs = "WGS84") |>
+  st_filter(somerville) |>
+  mutate(GEOID = paste0(STATEFP, COUNTYFP, TRACTCE, BLKGRPCE))
+
+bgs <- get_acs(geography = "block group",
+                  state = "MA",
+                  county = "Middlesex",
+                  variables = bg_vars,
+                  geometry = TRUE,
+                  output = "wide") |>
+  erase_water()  |>
+  st_transform("WGS84") |>
+  filter(GEOID %in% bg_centers$GEOID) |>
+  mutate(nh_white_total = nh_white_kE +
+                          nh_white_1E +
+                          nh_white_2E +
+                          nh_white_3E +
+                          nh_white_5E +
+                          nh_white_6E +
+                          nh_white_7E +
+                          nh_white_8E,
+         all_total = total_kE +
+                     total_1E +
+                     total_2E +
+                     total_3E +
+                     total_5E +
+                     total_6E +
+                     total_7E +
+                     total_8E) |>
+  mutate(hisp_or_non_white = all_total - nh_white_total) 
+
+white_bg_points <- st_as_sf(
+  st_sample(bgs, size = bgs$nh_white_total)) |>
+  mutate(white = TRUE)
+
+non_white_bg_points <- st_as_sf(
+  st_sample(bgs, size = bgs$hisp_or_non_white)) |>
+  mutate(white = FALSE)
+
+race_points <- rbind(white_bg_points, non_white_bg_points)
+
+```
+
+This is a project by Carole Turley Voulgaris. The associated
+GitHub repository is [here](https://github.com/c-voulgaris/SPS-WH-SRTS). Feel free to
+submit an issue with questions or comments.
+
+## Where do school children in Somerville live?
+
+Here is map showing the spatial distribution of Somerville children
+enrolled in school (kindergarten through 8th grade) based on data 
+from the 2020 5-year sample of the 
+American Community Survey. Census tract boundaries are outlined in 
+gray and the number of dots in each tract corresponds to the 
+number of children enrolled in school living in that tract (although
+the exact locations of the dots are not based on actual addresses).
+Dots are colored to differentiate between children in households with 
+incomes above the poverty level and those in households below the
+poverty level.
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, fig.cap="Spatial distribution of K-8 students in Somerville, based on tract-level data from the American Community Survey (2020 5-year sample). Cartolight basemap based on data from Open Street Map (c) OpenStreetMap contributors."}
+ggplot(inc_points) +
+  annotation_map_tile(type = "cartolight", zoomin = 0) +
+  geom_sf(aes(color = poverty), size = 0.3, alpha = 0.5) +
+  geom_sf(data = tracts,
+          fill = NA,
+        color = "gray") +
+    scale_color_manual(values = c("thistle",
+                                "salmon2"),
+                     labels = c(
+          "Student with household income above the poverty level",
+          "Student with household income below the poverty level")) +
+  new_scale_color() +
+  geom_sf(data = schools[schools$school != "Hypothetical WHCIS at 8 Bonair Street" &
+                         schools$school != "Hypothetical WHCIS at 554 Broadway",], 
+          aes(color = school)) +
+  scale_color_manual(values = c("forestgreen", "black")) +
+  theme_map() +
+  theme(legend.background = element_rect(fill = NA),
+        legend.title = element_blank())
+
+```
+
+This next map is similar, with dots representing the number of children
+in each census block group (block group boundaries are shown in gray)
+and dot colors indicating whether the child is non-Hispanic and white
+or either non-white or Hispanic^[The American Community Survey records race (white, Black, Asian, etc) and ethnicity (either Hispanic or non-Hispanic) separately.]. The overall 
+distribution of students looks a little different because dots representing students 
+are randomly distributed evenly throughout the census block group they live in 
+rather than within the census tract they live in, as shown in the 
+first map (there are 25 census tracts in Somerville and 70 block groups).
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.cap="Spatial distribution of K-8 students in Somerville, based on block-group-level data from the American Community Survey (2020 5-year sample). Cartolight basemap based on data from Open Street Map (c) OpenStreetMap contributors."}
+
+ggplot(race_points) +
+  annotation_map_tile(type = "cartolight", zoomin = 0) +
+  geom_sf(aes(color = white), size = 0.3, alpha = 0.5) +
+  geom_sf(data = bgs,
+          fill = NA,
+        color = "gray") +
+    scale_color_manual(values = c("salmon2",
+                                  "thistle"),
+                     labels = c("Non-white or Hispanic student",
+          "Non-Hispanic white student")) +
+  new_scale_color() +
+  geom_sf(data = schools[schools$school != "Hypothetical WHCIS at 8 Bonair Street" &
+                         schools$school != "Hypothetical WHCIS at 554 Broadway",], 
+          aes(color = school)) +
+  scale_color_manual(values = c("forestgreen", "black")) +
+  theme_map() +
+  theme(legend.background = element_rect(fill = NA),
+        legend.title = element_blank())
+
+```
+
+## Where is the middle of Somerville?
+
+One way to think about the middle of a shape (for example, the boundary of a
+city like Somerville) is its _centroid_. If you cut out a piece of cardboard
+in the shape of Somerville, and you wanted to balance your Somerville-shaped
+cardboard on the point of a pencil, the centroid is where you'd need to put the
+pencil in order for it to balance and stay level.
+
+The _population-weighted centroid_ is another useful way to think about the
+middle of a geographic area. If you had that same piece of cardboard, and you 
+could stick a bunch of heavy pins to the top of it, with each pin at a student's
+home address, and _then_ you tried to balance it on the tip of a pencil, it would
+fall off your pencil if you placed it at the centroid you were using before. 
+The population-weighted centroid is where
+you would have to put the pin to balance your little Somerville cardboard 
+now that it's been weighted to reflect the population of students. Another 
+term for a population-weighted centroid is the _center of population_.
+
+When we're thinking about where schools are needed, the center of 
+the student population is probably more relevant 
+than the simple geometric centroid, since land doesn't go to school; children do.
+
+Here is a map showing Somerville's center of the K-8 student population, which is located
+at 123 Central Street. It is about 180 meters (592 feet) from the Winter Hill building at 
+115 Sycamore Street.
+
+```{r, message=FALSE, echo=FALSE, fig.cap="Population-weighted centroid of K-8 students in Somerville. Cartolight basemap based on data from Open Street Map (c) OpenStreetMap contributors."}
+bg_pops <- bgs |>
+  st_drop_geometry()
+
+bg_center_df <- here("bg_centroids.csv") |>
+  read_csv(show_col_types = FALSE) |>
+  mutate(GEOID = paste0(STATEFP, COUNTYFP, TRACTCE, BLKGRPCE)) |>
+  right_join(bg_pops) |>
+  mutate(weight = all_total / sum(all_total)) |>
+  mutate(lat_bit = LATITUDE * weight,
+         lon_bit = LONGITUDE * weight) |>
+  select(GEOID, lat_bit, lon_bit) 
+
+bg_pop_center <- tibble(name = c("Center of student population"),
+                        lat = c(sum(bg_center_df$lat_bit)),
+                        lon = c(sum(bg_center_df$lon_bit))) |>
+  st_as_sf(coords = c("lon", "lat"), crs = "WGS84")
+
+ggplot(race_points) +
+  annotation_map_tile(type = "cartolight", zoomin = 0) +
+  geom_sf(aes(color = "Student enrolled in grade K-8"), size = 0.3, alpha = 0.5) +
+  geom_sf(data = bgs,
+          fill = NA,
+        color = "gray") +
+    scale_color_manual(values = c("gray50")) +
+  new_scale_color() +
+  geom_sf(data = schools[schools$school != "Hypothetical WHCIS at 8 Bonair Street" &
+                         schools$school != "Hypothetical WHCIS at 554 Broadway",], 
+          aes(color = school)) +
+  scale_color_manual(values = c("forestgreen", "black")) +
+  new_scale_color() +
+  geom_sf(data = bg_pop_center,
+          size = 3,
+          aes(color = "Center of Student population (grades K-8)")) +
+  scale_color_manual(values = "purple") +
+  theme_map() +
+  theme(legend.background = element_rect(fill = NA),
+        legend.title = element_blank())
+
+
+```
+
+## Average distances to school
+
+Since Winter Hill Community Innovation School is so centrally-located, 
+it plays an important role in minimizing the average distance between
+a Somerville student's home and the nearest school. 
+
+Here is a map showing the walking distances^[This is the distance students would need to walk using the existing street network, which is different from the straight-line "as the crow flies" distance. Distances are calculated using the r5r package in R.] to the nearest K-8 
+school^[Brown school is included, even though it only serves grades K-8; Capuano is not included, even though it serves Kindergarten and first grade] for 
+K-8 students in Somerville.^[Residential locations are approximated as points 
+randomly distributed in the census block group where each student lives, based on the
+2020 five-year sample of the American Community Survey.]
+
+```{r, message=FALSE, echo=FALSE, results='hide', warning=FALSE}
+race_points <- race_points |>
+  mutate(id = seq(1, nrow(race_points)))
+
+schools <- schools |>
+  mutate(id = seq(1, nrow(schools)))
+
+somer_core <- setup_r5(here("network"))
+
+tt <- travel_time_matrix(somer_core, 
+                         origins = race_points, 
+                         destinations = schools)
+
+tt_wide <- tt |> pivot_wider(names_from = toId,
+                             values_from = travel_time)
+
+tt_existing <- tt |>
+  mutate(id = as.numeric(fromId),
+         toId = as.numeric(toId)) |>
+  filter(toId != 2, toId != 3) |>
+  group_by(id) |>
+  mutate(min_time_existing = min(travel_time)) |>
+  mutate(closest_school = min_time_existing == travel_time) |>
+  filter(closest_school) |>
+  group_by(id) |>
+  summarise(min_time_existing = mean(travel_time),
+            close_school = min(toId))
+  
+tt_no_wh <- tt |>
+  mutate(id = as.numeric(fromId),
+         toId = as.numeric(toId)) |>
+  filter(toId > 3) |>
+  group_by(id) |>
+  summarise(min_time_no_wh = min(travel_time)) 
+  
+tt_edgerly <- tt  |>
+  mutate(id = as.numeric(fromId),
+         toId = as.numeric(toId)) |>
+  filter(toId == 2 | toId > 3) |>
+  group_by(id) |>
+  summarise(min_time_edgerly = min(travel_time))
+  
+tt_trum <- tt |>
+  mutate(id = as.numeric(fromId),
+         toId = as.numeric(toId)) |>
+  filter(toId > 2) |>
+  group_by(id) |>
+  summarise(min_time_trum = min(travel_time)) 
+
+race_points <- race_points |>
+  left_join(tt_existing) |>
+  left_join(tt_no_wh) |>
+  left_join(tt_edgerly) |>
+  left_join(tt_trum)
+```
+
+```{r, echo=FALSE, message=FALSE, fig.cap="Distances to the nearest school for K-8 students in Somerville (existing school locations). Cartolight basemap based on data from Open Street Map (c) OpenStreetMap contributors."}
+ggplot(race_points) +
+  annotation_map_tile(type = "cartolight", zoomin = 0) +
+  geom_sf(aes(color = min_time_existing), size = 0.3, alpha = 0.5) +
+  geom_sf(data = bgs,
+          fill = NA,
+        color = "gray") +
+  scale_color_viridis_c(name = "Walk time to closest school (minutes)") +
+  new_scale_color() +
+  geom_sf(data = schools[schools$school != "Hypothetical WHCIS at 8 Bonair Street" &
+                         schools$school != "Hypothetical WHCIS at 554 Broadway",], 
+          aes(color = school)) +
+  scale_color_manual(name = "School location", values = c("forestgreen", "black")) +
+  new_scale_color() +
+  theme_map() +
+  theme(legend.background = element_rect(fill = NA))
+```
+
+Here is a map showing the same analysis under a hypothetical condition where
+the Winter Hill building is removed from the set of schools without being replaced.
+
+```{r, message=FALSE, echo = FALSE, fig.cap="Distances to the nearest school for K-8 students in Somerville (without WHCIS). Cartolight basemap based on data from Open Street Map (c) OpenStreetMap contributors."}
+ggplot(race_points) +
+  annotation_map_tile(type = "cartolight", zoomin = 0) +
+  geom_sf(aes(color = min_time_no_wh), size = 0.3, alpha = 0.5) +
+  geom_sf(data = bgs,
+          fill = NA,
+        color = "gray") +
+  scale_color_viridis_c(name = "Walk time to closest school (minutes)") +
+  new_scale_color() +
+  geom_sf(data = schools[schools$id > 3,], 
+          aes(color = school)) +
+  scale_color_manual(name = "School location", values = c("black")) +
+  new_scale_color() +
+  theme_map() +
+  theme(legend.background = element_rect(fill = NA))
+```
+
+Here is the same map for a hypothetical condition where the Winter Hill building
+is replaced by a building at 8 Bonair Street.
+
+```{r, message=FALSE, echo=FALSE, fig.cap="Distances to the nearest school for K-8 students in Somerville (WHCIS moved to 8 Bonair Street). Cartolight basemap based on data from Open Street Map (c) OpenStreetMap contributors."}
+ggplot(race_points) +
+  annotation_map_tile(type = "cartolight", zoomin = 0) +
+  geom_sf(aes(color = min_time_edgerly), size = 0.3, alpha = 0.5) +
+  geom_sf(data = bgs,
+          fill = NA,
+        color = "gray") +
+  scale_color_viridis_c(name = "Walk time to closest school (minutes)") +
+  new_scale_color() +
+  geom_sf(data = schools[schools$id > 3 | schools$id == 2,], 
+          aes(color = school)) +
+  scale_color_manual(name = "School location", values = c("forestgreen", "black")) +
+  new_scale_color() +
+  theme_map() +
+  theme(legend.background = element_rect(fill = NA))
+```
+
+Here is the same map for a hypothetical condition where the Winter Hill building
+is replaced by a building at 554 Broadway.
+
+```{r, message=FALSE, echo=FALSE, fig.cap="Distances to the nearest school for K-8 students in Somerville (WHCIS moved to 554 Broadway). Cartolight basemap based on data from Open Street Map (c) OpenStreetMap contributors."}
+ggplot(race_points) +
+  annotation_map_tile(type = "cartolight", zoomin = 0) +
+  geom_sf(aes(color = min_time_trum), size = 0.3, alpha = 0.5) +
+  geom_sf(data = bgs,
+          fill = NA,
+        color = "gray") +
+  scale_color_viridis_c(name = "Walk time to closest school (minutes)") +
+  new_scale_color() +
+  geom_sf(data = schools[schools$id > 2,], 
+          aes(color = school)) +
+  scale_color_manual(name = "School location", values = c("forestgreen", "black")) +
+  new_scale_color() +
+  theme_map() +
+  theme(legend.background = element_rect(fill = NA))
+```
+
+Obviously, the students for whom the distance to the closest school would
+change the most with the removal or relocation of WHCIS would be those
+for who the location at 115 Sycamore Street would have otherwise been the
+closest school (shown in the map below).
+
+```{r, echo=FALSE, message=FALSE, fig.cap="Locations of students for whom 115 Sycamore Street is the closest school. Cartolight basemap based on data from Open Street Map (c) OpenStreetMap contributors."}
+ggplot(race_points) +
+  annotation_map_tile(type = "cartolight", zoomin = 0) +
+  geom_sf(aes(color = close_school == 1), size = 0.3, alpha = 0.5) +
+  geom_sf(data = bgs,
+          fill = NA,
+        color = "gray") +
+  scale_color_manual(labels = c("Students for whom WHCIS is not the closest school",
+                                "Students for whom WHCIS is the closest school"),
+                     values = c("gray70",
+                                "forestgreen")) +
+  new_scale_color() +
+  geom_sf(data = schools[schools$school != "Hypothetical WHCIS at 8 Bonair Street" &
+                         schools$school != "Hypothetical WHCIS at 554 Broadway",], 
+          aes(color = school)) +
+  scale_color_manual(values = c("forestgreen", "black")) +
+  new_scale_color() +
+  theme_map() +
+  theme(legend.background = element_rect(fill = NA),
+        legend.title = element_blank())
+```
+
+
+Here is a table showing the average walk time to the closest school
+for K-8 students under each of the above scenarios. The fist column
+shows average walk times to the closest school for all students in Somerville.
+The second column shows average walk times to the closest school for those
+students for whom the school at 115 Sycamore Street is currently the closest
+school.
+
+```{r, echo =FALSE}
+tibble(Scenario = c("WHCIS at 115 Sycamore Street",
+                    "WHCIS removed without replacement",
+                    "WHCIS replaced with school at 8 Bonair Street",
+                    "WHCIC replaced with a school at 554 Broadway"),
+       `Average walking time to the closest school (all students) (minutes)` = 
+         c(mean(race_points$min_time_existing),
+           mean(race_points$min_time_no_wh),
+           mean(race_points$min_time_edgerly),
+           mean(race_points$min_time_trum)),
+       `Average walking time to the closest school (students closest to 115 Sycamore St) (minutes)` = 
+         c(mean(race_points$min_time_existing[race_points$close_school ==1]),
+           mean(race_points$min_time_no_wh[race_points$close_school ==1]),
+           mean(race_points$min_time_edgerly[race_points$close_school ==1]),
+           mean(race_points$min_time_trum[race_points$close_school ==1]))) |>
+  knitr::kable(digits = 1)
+```
+
+
+
