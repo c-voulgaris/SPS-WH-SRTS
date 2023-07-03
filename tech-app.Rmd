@@ -1,0 +1,185 @@
+---
+title: "Technical Appendix"
+subtitle: "Somerville Schools and Students"
+output: 
+  tint::tintHtml
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This analysis uses the following packages.
+
+```{r, message=FALSE, warning=FALSE, results='hide'}
+library(tidyverse)
+library(tidycensus)
+library(sf)
+library(here)
+library(tigris)
+```
+
+
+Public data from the American Community Survey includes the number of students
+enrolled in school, disaggregated by grade level, at the census block-group level.
+Data are further disagregated by race/ethnicity and, at the tract level, by 
+poverty status.
+
+The number of households in each census block is available from the 2020 Census.
+
+I've simulated the residential locations of students by: 
+
+1. Gathering the number of occupied housing units in each census block 
+from the 2020 Census
+2. Calculating the ratio of non-Hispanic white students to occupied housing units
+and the ratio of Hispanic or non-white students to occupied housing units in 
+each census block group.
+3. Calculating the ratio of students in households above and below the poverty level
+to the number of occupied housing units in each census tract.
+4. Calculating the number of students in each category for each census block, 
+based on the relevant ratio for the tract or block group containing the block.
+5. Generate the appropriate number of points in each category for each census block,
+randomly distributed within each census block.
+
+## 1. Number of occupied housing units in each census block.
+
+```{r, warning=FALSE, error=FALSE, message=FALSE, results='hide'}
+somerville <- places(state = "MA") |>
+  dplyr::filter(GEOID == "2562535") 
+
+block_hu <- get_decennial(year = 2020, geography = "block",
+                          variables = c("H1_002N"),
+                          state = "MA",
+                          county = "Middlesex",
+                          geometry = TRUE) 
+
+block_centers_somer <- st_centroid(block_hu) |>
+  st_filter(somerville)
+
+block_hu_somer <- block_hu |>
+  filter(GEOID %in% block_centers_somer$GEOID) |>
+  mutate(bg_geoid = substr(GEOID, 1, 12),
+         tract_geoid = substr(GEOID, 1, 11)) 
+```
+
+## 2. Ratio of non-Hispanic white students and non-white or Hispanic studnets to occupied housing units in each census block group.
+
+```{r, message=FALSE, results='hide'}
+bg_vars <- c(nh_white_k = "B14007H_004",
+             nh_white_1 = "B14007H_005",
+             nh_white_2 = "B14007H_006",
+             nh_white_3 = "B14007H_007",
+             nh_white_4 = "B14007H_008",
+             nh_white_5 = "B14007H_009",
+             nh_white_6 = "B14007H_010",
+             nh_white_7 = "B14007H_011",
+             nh_white_8 = "B14007H_012",
+             total_k = "B14007_004",
+             total_1 = "B14007_005",
+             total_2 = "B14007_006",
+             total_3 = "B14007_007",
+             total_4 = "B14007_008",
+             total_5 = "B14007_009",
+             total_6 = "B14007_010",
+             total_7 = "B14007_011",
+             total_8 = "B14007_012",
+             hus = "B25002_002")
+
+bgs <- get_acs(geography = "block group",
+               state = "MA",
+               county = "Middlesex",
+               variables = bg_vars,
+               output = "wide",
+               year = 2021) |>  
+  mutate(nh_white_total = nh_white_kE +
+                          nh_white_1E +
+                          nh_white_2E +
+                          nh_white_3E +
+                          nh_white_5E +
+                          nh_white_6E +
+                          nh_white_7E +
+                          nh_white_8E,
+         all_total = total_kE +
+                     total_1E +
+                     total_2E +
+                     total_3E +
+                     total_5E +
+                     total_6E +
+                     total_7E +
+                     total_8E) |>
+  mutate(white_stu_per_hu = nh_white_total / husE,
+         non_white_stu_per_hu = (all_total - nh_white_total) / husE) |>
+  rename(bg_geoid = GEOID) |>
+  select(-NAME)
+```
+
+## 2. Ratio of students above and below the poverty level to occupied housing units in each census tract.
+
+```{r, message=FALSE, results='hide'}
+tract_vars <- c(pov_gk = "B14006_005",
+                pov_g1_4 = "B14006_006",
+                pov_g5_8 = "B14006_007",
+                no_pov_gk = "B14006_015",
+                no_pov_g1_4 = "B14006_016",
+                no_pov_g5_8 = "B14006_017",
+                hus = "B25002_002")
+
+tracts <- get_acs(geography = "tract",
+                  state = "MA",
+                  county = "Middlesex",
+                  variables = tract_vars,
+                  output = "wide",
+                  year = 2021) |>  
+  mutate(pov_total = pov_gkE +
+                     pov_g1_4E +
+                     pov_g5_8E,
+         no_pov_total = no_pov_gkE +
+                        no_pov_g1_4E +
+                        no_pov_g5_8E) |>
+  mutate(pov_stu_per_hu = pov_total / husE,
+         non_pov_stu_per_hu = no_pov_total / husE) |>
+  rename(tract_geoid = GEOID) |>
+  select(-NAME)
+```
+
+## 4. Number of students in each category for each census block
+
+```{r, message=FALSE, results='hide'}
+students <- block_hu_somer |>
+  left_join(bgs) |>
+  mutate(white_students = round(white_stu_per_hu * value, digits = 0),
+         non_white_students = round(non_white_stu_per_hu * value, digits = 0)) |>
+  rename(block_geoid = GEOID,
+         total_hus = value) |>
+  left_join(tracts, by="tract_geoid") |>
+  mutate(pov_students = round(pov_stu_per_hu * total_hus, digits = 0),
+         non_pov_students = round(non_pov_stu_per_hu * total_hus, digits = 0)) |>
+  select(block_geoid, bg_geoid, tract_geoid, total_hus, white_students, 
+         non_white_students, pov_students, non_pov_students)
+```
+
+## 5. Generate points
+
+``` {r, message=FALSE, results='hide'}
+student_points_white <- st_sample(students, 
+                                    size = students$white_students) |>
+   st_as_sf() |>
+  mutate(`race` = "Non-Hispanic white student")
+
+student_points_non_white <- st_sample(students, 
+                                    size = students$non_white_students) |>
+   st_as_sf() |>
+  mutate(`race` = "Non-white or Hispanic student")
+
+student_points <- rbind(student_points_white, student_points_non_white) |>
+  st_join(students) |>
+  mutate(total_students = white_students + non_white_students) |>
+  mutate(pct_pov = pov_students / (pov_students + non_pov_students)) |>
+  mutate(random = runif(n = n(), min = 0, max = 1)) |>
+  mutate(poverty = random < pct_pov) |>
+  replace_na(list(poverty = 0)) |>
+  select(race, poverty)
+
+st_write(student_points, here("student_points.geojson"), delete_dsn = TRUE)
+```
+
