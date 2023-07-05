@@ -9,7 +9,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-This analysis uses the following packages.
+This analysis was completed using the following packages in the R programming language.
 
 ```{r, message=FALSE, warning=FALSE, results='hide'}
 library(tidyverse)
@@ -22,7 +22,7 @@ library(tigris)
 
 Public data from the American Community Survey includes the number of students
 enrolled in school, disaggregated by grade level, at the census block-group level.
-Data are further disagregated by race/ethnicity and, at the tract level, by 
+Data are further disaggregated by race/ethnicity and, at the tract level, by 
 poverty status.
 
 The number of households in each census block is available from the 2020 Census.
