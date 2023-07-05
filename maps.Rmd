@@ -317,7 +317,7 @@ ggplot(points) +
 
 Obviously, the students for whom the distance to the closest school would
 change the most with the removal or relocation of WHCIS would be those
-for who the location at 115 Sycamore Street would have otherwise been the
+for whom the location at 115 Sycamore Street would have otherwise been the
 closest school (shown in the map below).
 
 ```{r, echo=FALSE, message=FALSE, fig.cap="Locations of students for whom 115 Sycamore Street is the closest school. Cartolight basemap based on data from Open Street Map (c) OpenStreetMap contributors."}
