@@ -151,7 +151,7 @@ represent schools.
 The dots representing students are color-coded to indicate which school a student
 lives closest to (in terms of walking distance) under each scenario. 
 
-### Prior to WHCIS closure (option 01 + 01A)
+### Prior & Option 01+01A
 
 ```{r, message=FALSE, warning=FALSE, echo=FALSE}
 
@@ -222,7 +222,7 @@ Winter Hill School students to the Edgerly Education Center, the closest school
 for most students who were previously closest to Winter Hill became Argenziano
 or Healey
 
-### Options 01 + 01B, 02 and 03
+### Options 01+01B, 02 & 03
 
 ```{r, message=FALSE, warning=FALSE, echo=FALSE}
 
@@ -301,7 +301,7 @@ school.
 
 The following maps show illustrate walking times^[Travel times are calculated using the r5r package in R.] to the nearest school that serves students in at least grades kindergarten through fifth grade.^[Refer to the [technical appendix](https://c-voulgaris.github.io/SPS-WH-SRTS/tech-app.html) for details on how the residential locations of students are approximated.]
 
-### Prior to WHCIS closure (option 01 + 01A)
+### Prior & Option 01 + 01A
 
 ```{r, echo=FALSE, message=FALSE}
 ggplot(student_points) +
@@ -375,7 +375,7 @@ students experience, but rather the distance to the _closest_ school.
 Most Winter Hill students who were moved to Edgerly when the location
 at 115 Sycamore St closed are presumably not attending their closest school.
 
-### Options 01 + 01B, 02 and 03
+### Options 01 + 01B, 02 & 03
 
 ```{r, echo=FALSE, message=FALSE}
 ggplot(student_points) +
@@ -513,7 +513,7 @@ summary <- tibble(Scenario = factor(rep(c("Prior, Option 01 + 01A",
 ```
 
 
-### Average walking times
+### Average walks
 
 ```{r, echo=FALSE}
 ggplot(summary) +
@@ -538,7 +538,7 @@ Average walking times for students who are currently closest to Brown or Winter
 Hill would increase by more than 50 percent in scenarios where their respective
 schools are left vacant.
 
-### 10-minute walks
+### 10-min walks
 
 ```{r, echo=FALSE}
 ggplot(summary) +
@@ -568,7 +568,7 @@ closest school would be able to walk to any school within ten minutes if the
 Brown school were left vacant and no new school were built. This number would increase
 to about 45 students if a new school were built at Trum Field.
 
-### 20-minute walks
+### 20-min walks
 
 ```{r, echo=FALSE}
 ggplot(summary) +
