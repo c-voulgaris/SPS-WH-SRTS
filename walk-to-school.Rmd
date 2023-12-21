@@ -1,0 +1,587 @@
+---
+title: "Walking Distances to Somerville Schools"
+output: 
+  html_document:
+    theme: journal
+    toc: yes
+    toc_float:
+      collapsed: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(sf)
+library(here)
+library(ggspatial)
+library(ggthemes)
+library(ggnewscale)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+schools <- tibble(school = factor(c("WHCIS (115 Sycamore St)",
+                                    "Edgerly Education Center",
+                                    "Trum Field",
+                                    "Brown School",
+                                    "Kennedy School", 
+                                    "West Somerville School",
+                                    "Argenziano School",
+                                    "Healey School",
+                                    "East Somerville School"),
+                             levels = c("WHCIS (115 Sycamore St)",
+                                    "Edgerly Education Center",
+                                    "Trum Field",
+                                    "Brown School",
+                                    "Kennedy School", 
+                                    "West Somerville School",
+                                    "Argenziano School",
+                                    "Healey School",
+                                    "East Somerville School")),
+                  lat = c(42.391501258379805,
+                          42.3876187927341, 
+                          42.397961975144824, 
+                          42.397431825014976, 
+                          42.38924933782342, 
+                          42.406118297446874,
+                          42.37905427619121,
+                          42.39744670040332,
+                          42.38584202754295),
+                  lon = c(-71.09888308341662,
+                          -71.08720578602485,
+                          -71.10724327216819,
+                          -71.11412655504013,
+                          -71.11555456799908,
+                          -71.12633659736886,
+                          -71.09860349311977,
+                          -71.09547133152927,
+                          -71.08622473784972)) |>
+  st_as_sf(coords = c("lon", "lat"), crs = "WGS84")
+
+student_points <- st_read(here("student-walk-times.geojson")) |>
+  mutate(close_school_text_prior = factor(case_when(close_school_prior == "1" ~ "WHCIS (115 Sycamore St)",
+                                             close_school_prior == "2" ~ "Edgerly Education Center",
+                                             close_school_prior == "3" ~ "Trum Field",
+                                             close_school_prior == "4" ~ "Brown School",
+                                             close_school_prior == "5" ~ "Kennedy School",
+                                             close_school_prior == "6" ~ "West Somerville School",
+                                             close_school_prior == "7" ~ "Argenziano School",
+                                             close_school_prior == "8" ~ "Healey School",
+                                             TRUE ~ "East Somerville School"), 
+                                          levels = c("WHCIS (115 Sycamore St)",
+                                                     "Edgerly Education Center",
+                                                     "Trum Field",
+                                                     "Brown School", 
+                                                     "Kennedy School", 
+                                                     "West Somerville School",
+                                                     "Argenziano School",
+                                                     "Healey School",
+                                                     "East Somerville School")),
+         close_school_text_now = factor(case_when(close_school_now == "1" ~ "WHCIS (115 Sycamore St)",
+                                           close_school_now == "2" ~ "Edgerly Education Center",
+                                           close_school_now == "3" ~ "Trum Field",
+                                           close_school_now == "4" ~ "Brown School",
+                                           close_school_now == "5" ~ "Kennedy School",
+                                           close_school_now == "6" ~ "West Somerville School",
+                                           close_school_now == "7" ~ "Argenziano School",
+                                           close_school_now == "8" ~ "Healey School",
+                                           TRUE ~ "East Somerville School"), 
+                                          levels = c("WHCIS (115 Sycamore St)",
+                                                     "Edgerly Education Center",
+                                                     "Trum Field",
+                                                     "Brown School", 
+                                                     "Kennedy School",
+                                                     "West Somerville School",
+                                                     "Argenziano School",
+                                                     "Healey School",
+                                                     "East Somerville School")),
+         close_school_text_01_01B = factor(case_when(close_school_01_01B == "1" ~ "WHCIS (115 Sycamore St)",
+                                              close_school_01_01B == "2" ~ "Edgerly Education Center",
+                                              close_school_01_01B == "3" ~ "Trum Field",
+                                              close_school_01_01B == "4" ~ "Brown School",
+                                              close_school_01_01B == "5" ~ "Kennedy School",
+                                              close_school_01_01B == "6" ~ "West Somerville School",
+                                              close_school_01_01B == "7" ~ "Argenziano School",
+                                              close_school_01_01B == "8" ~ "Healey School",
+                                              TRUE ~ "East Somerville School"), 
+                                          levels = c("WHCIS (115 Sycamore St)",
+                                                     "Edgerly Education Center",
+                                                     "Trum Field",
+                                                     "Brown School", 
+                                                     "Kennedy School", 
+                                                     "West Somerville School",
+                                                     "Argenziano School",
+                                                     "Healey School",
+                                                     "East Somerville School")),
+         close_school_text_04 = factor(case_when(close_school_04 == "1" ~ "WHCIS (115 Sycamore St)",
+                                          close_school_04 == "2" ~ "Edgerly Education Center",
+                                          close_school_04 == "3" ~ "Trum Field",
+                                          close_school_04 == "4" ~ "Brown School",
+                                          close_school_04 == "5" ~ "Kennedy School",
+                                          close_school_04 == "6" ~ "West Somerville School",
+                                          close_school_04 == "7" ~ "Argenziano School",
+                                          close_school_04 == "8" ~ "Healey School",
+                                          TRUE ~ "East Somerville School"), 
+                                          levels = c("WHCIS (115 Sycamore St)",
+                                                     "Edgerly Education Center",
+                                                     "Trum Field",
+                                                     "Brown School", 
+                                                     "Kennedy School", 
+                                                     "West Somerville School",
+                                                     "Argenziano School",
+                                                     "Healey School",
+                                                     "East Somerville School"))) 
+```
+
+This is a project by Carole Turley Voulgaris. The associated
+GitHub repository is [here](https://github.com/c-voulgaris/SPS-WH-SRTS). Feel free to
+submit an issue with questions or comments.
+
+## Children's closest schools {.tabset}
+
+The tabs below include maps showing the approximate spatial distribution of 
+Somerville children enrolled in school (kindergarten through 5th grade) based on data 
+from the 2022 5-year sample of the American Community Survey (see this
+[technical appendix](https://c-voulgaris.github.io/SPS-WH-SRTS/tech-app-2.html) 
+for details). Each small dot represents one student, and the larger dots 
+represent schools. 
+
+The dots representing students are color-coded to indicate which school a student
+lives closest to (in terms of walking distance) under each scenario. 
+
+### Prior to WHCIS closure (option 01 + 01A)
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+
+ggplot(student_points) +
+  annotation_map_tile(type = "cartolight", zoomin = 0, progress = "none") +
+  geom_sf(aes(color = close_school_text_prior), 
+          size = 0.3, alpha = 0.3) +
+  geom_sf(data = schools[schools$school != "Trum Field" &
+                         schools$school != "Edgerly Education Center",], 
+          aes(color = school),
+          size = 3) +
+  scale_color_manual(values = c("darkorchid4",
+                                "sienna",
+                                "cadetblue4",
+                                "royalblue4",
+                                "seagreen4",
+                                "tomato3",
+                                "gray60")) +
+  annotate("text", x = -71.135, y = 42.3735, hjust = 0, size = 3, 
+           label = "Cartolight basemap based on data from Open Street Map\n(c) OpenStreetMap contributors.") +
+  theme_void() +
+  theme(legend.background = element_rect(fill = NA,
+                                         linetype = "blank"),
+        legend.title = element_blank())
+
+```
+
+The above map shows the closest school for each student prior to the closure of 
+building at 115 Sycamore St in spring of 2023. 
+At that time, Winter Hill School was the closest school for about 25 percent of 
+all K-5 students living in Somerville and Brown School was the closest for about 
+9 percent of all Somerville K-5 students.
+
+Option 01 + 01A would rebuild or renovate both the Winter Will and Brown schools at their 
+existing locations, so students' closest schools would be the same as before
+the closure of the Winter Hill building at 115 Sycamore St.
+
+### Existing
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+
+ggplot(student_points) +
+  annotation_map_tile(type = "cartolight", zoomin = 0, progress = "none") +
+  geom_sf(aes(color = close_school_text_now), 
+          size = 0.3, alpha = 0.3) +
+  geom_sf(data = schools[schools$school != "Trum Field" &
+                         schools$school != "WHCIS (115 Sycamore St)",], 
+          aes(color = school),
+          size = 3) +
+  scale_color_manual(values = c("darkorchid4",
+                                "sienna",
+                                "cadetblue4",
+                                "royalblue4",
+                                "seagreen4",
+                                "tomato3",
+                                "gray60")) +
+  annotate("text", x = -71.135, y = 42.3735, hjust = 0, size = 3, 
+           label = "Cartolight basemap based on data from Open Street Map\n(c) OpenStreetMap contributors.") +
+  theme_void() +
+  theme(legend.background = element_rect(fill = NA,
+                                         linetype = "blank"),
+        legend.title = element_blank())
+
+```
+
+With the closure of the building at 115 Sycamore St and the relocation of
+Winter Hill School students to the Edgerly Education Center, the closest school 
+for most students who were previously closest to Winter Hill became Argenziano
+or Healey
+
+### Options 01 + 01B, 02 and 03
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+
+ggplot(student_points) +
+  annotation_map_tile(type = "cartolight", zoomin = 0, progress = "none") +
+  geom_sf(aes(color = close_school_text_01_01B), 
+          size = 0.3, alpha = 0.3) +
+  geom_sf(data = schools[schools$school != "Brown School" &
+                         schools$school != "Trum Field" &
+                         schools$school != "Edgerly Education Center",], 
+          aes(color = school),
+          size = 3) +
+  scale_color_manual(values = c("darkorchid4",
+                                "cadetblue4",
+                                "royalblue4",
+                                "seagreen4",
+                                "tomato3",
+                                "gray60")) +
+  annotate("text", x = -71.135, y = 42.3735, hjust = 0, size = 3, 
+           label = "Cartolight basemap based on data from Open Street Map\n(c) OpenStreetMap contributors.") +
+  theme_void() +
+  theme(legend.background = element_rect(fill = NA,
+                                         linetype = "blank"),
+        legend.title = element_blank())
+
+```
+
+This map shows students' closest schools under Option 01 + 01B,
+02, or 03 which all involve rebuilding or renovating the Winter Hill school on 
+its current site, leaving the Brown school building vacant and adding capacity at the 
+Kennedy school or at Winter Hill to replace the lost capacity at Brown.
+
+These proposals differ in terms of _where_ capacity would be added, and hence 
+the number of students who would be able to attend their closest school, but 
+they are identical in terms of which school a student would be closest to.
+
+Most students for whom Brown was previously the closest school would be 
+closest to West Somerville or Kennedy under these options.
+
+### Option 04
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+
+ggplot(student_points) +
+  annotation_map_tile(type = "cartolight", zoomin = 0, progress = "none") +
+  geom_sf(aes(color = close_school_text_04), 
+          size = 0.3, alpha = 0.3) +
+  geom_sf(data = schools[schools$school != "WHCIS (115 Sycamore St)" &
+                         schools$school != "Brown School" &
+                         schools$school != "Edgerly Education Center",], 
+          aes(color = school),
+          size = 3) +
+  scale_color_manual(values = c("darkorchid4",
+                                "cadetblue4",
+                                "royalblue4",
+                                "seagreen4",
+                                "tomato3",
+                                "gray60")) +
+  annotate("text", x = -71.135, y = 42.3735, hjust = 0, size = 3, 
+           label = "Cartolight basemap based on data from Open Street Map\n(c) OpenStreetMap contributors.") +
+  theme_void() +
+  theme(legend.background = element_rect(fill = NA,
+                                         linetype = "blank"),
+        legend.title = element_blank())
+
+```
+
+Option 04 would leave both the Winter Hill and Brown school buildings vacant and
+build a new school at Trum Field. This new school would be the closest school
+for about 10 percent of all K-5 students in Somerville, including about 21 percent
+of the students for whom Winter Hill was previously the closest school and
+about 52 percent of the students from whom Brown was previously the closest 
+school.
+
+## Walk time maps {.tabset}
+
+The following maps show illustrate walking times^[Travel times are calculated using the r5r package in R.] to the nearest school that serves students in at least grades kindergarten through fifth grade.^[Refer to the [technical appendix](https://c-voulgaris.github.io/SPS-WH-SRTS/tech-app.html) for details on how the residential locations of students are approximated.]
+
+### Prior to WHCIS closure (option 01 + 01A)
+
+```{r, echo=FALSE, message=FALSE}
+ggplot(student_points) +
+  annotation_map_tile(type = "cartolight", zoomin = 0) +
+  geom_sf(aes(color = min_time_prior), size = 0.3, alpha = 0.3) +
+  scale_color_viridis_c(name = "Walk time to closest school (minutes)",
+                        direction = -1) +
+  new_scale_color() +
+  geom_sf(data = schools[schools$school != "Trum Field"  &
+                         schools$school != "Edgerly Education Center",], 
+          aes(color = school),
+          size = 3) +
+  scale_color_manual(values = c("darkorchid4",
+                                "sienna",
+                                "cadetblue4",
+                                "royalblue4",
+                                "seagreen4",
+                                "tomato3",
+                                "gray60"),
+                     name = "") +
+  new_scale_color() +
+    annotate("text", x = -71.135, y = 42.3735, hjust = 0, size = 3, 
+           label = "Cartolight basemap based on data from Open Street Map\n(c) OpenStreetMap contributors.") +
+  theme_void() +
+  theme(legend.background = element_rect(fill = NA,
+                                         linetype = "blank"))
+```
+
+The above map illustrates walking distances for students prior to the closure of 
+building at 115 Sycamore St in spring of 2023. 
+
+Option 01 + 01A,
+which would rebuild/renovate both Winter Will and Brown schools at their 
+existing locations, would provide the same walking distances as this prior
+condition, since all schools would be in their original locations.
+
+### Existing
+
+```{r, echo=FALSE, message=FALSE}
+ggplot(student_points) +
+  annotation_map_tile(type = "cartolight", zoomin = 0) +
+  geom_sf(aes(color = min_time_now), size = 0.3, alpha = 0.3) +
+  scale_color_viridis_c(name = "Walk time to closest school (minutes)",
+                        direction = -1) +
+  new_scale_color() +
+  geom_sf(data = schools[schools$school != "WHCIS (115 Sycamore St)"  &
+                         schools$school != "Trum Field",], 
+          aes(color = school),
+          size = 3) +
+  scale_color_manual(values = c("darkorchid4",
+                                "sienna",
+                                "cadetblue4",
+                                "royalblue4",
+                                "seagreen4",
+                                "tomato3",
+                                "gray60"),
+                     name = "") +
+  new_scale_color() +
+  annotate("text", x = -71.135, y = 42.3735, hjust = 0, size = 3, 
+           label = "Cartolight basemap based on data from Open Street Map\n(c) OpenStreetMap contributors.") +
+  theme_void() +
+  theme(legend.background = element_rect(fill = NA,
+                                         linetype = "blank"))
+```
+
+This map illustrates walking times for students to walk to the nearest
+school now, with the Winter Hill School moved to Edgerly. 
+It is worth noting that these are _not_ the walking distances that 
+students experience, but rather the distance to the _closest_ school.
+
+Most Winter Hill students who were moved to Edgerly when the location
+at 115 Sycamore St closed are presumably not attending their closest school.
+
+### Options 01 + 01B, 02 and 03
+
+```{r, echo=FALSE, message=FALSE}
+ggplot(student_points) +
+  annotation_map_tile(type = "cartolight", zoomin = 0) +
+  geom_sf(aes(color = min_time_01_01B), size = 0.3, alpha = 0.3) +
+  scale_color_viridis_c(name = "Walk time to closest school (minutes)",
+                        direction = -1) +
+  new_scale_color() +
+  geom_sf(data = schools[schools$school != "Trum Field"  &
+                         schools$school != "Edgerly Education Center" &
+                         schools$school != "Brown School",], 
+          aes(color = school),
+          size = 3) +
+  scale_color_manual(values = c("darkorchid4",
+                                "cadetblue4",
+                                "royalblue4",
+                                "seagreen4",
+                                "tomato3",
+                                "gray60"),
+                     name = "") +
+  new_scale_color() +
+  annotate("text", x = -71.135, y = 42.3735, hjust = 0, size = 3, 
+           label = "Cartolight basemap based on data from Open Street Map\n(c) OpenStreetMap contributors.") +
+  theme_void() +
+  theme(legend.background = element_rect(fill = NA,
+                                         linetype = "blank"))
+```
+
+This map illustrates walking times to the nearest school under Option 01 + 01B,
+02, or 03 which all involve rebuilding or renovating the Winter Hill school on 
+its current site, leaving the Brown school building vacant and adding capacity at the 
+Kennedy school or at Winter Hill to replace the lost capacity at Brown.
+
+These proposals differ in terms of _where_ capacity would be added, and hence 
+the number of students who would be able to attend their closest school, but 
+they are identical in terms of the distance each student would be from the 
+_closest_ school, even if their closest school is not their assigned school.
+
+### Option 04
+
+```{r, echo=FALSE, message=FALSE}
+ggplot(student_points) +
+  annotation_map_tile(type = "cartolight", zoomin = 0) +
+  geom_sf(aes(color = min_time_04), size = 0.3, alpha = 0.3) +
+  scale_color_viridis_c(name = "Walk time to closest school (minutes)",
+                        direction = -1) +
+  new_scale_color() +
+  geom_sf(data = schools[schools$school != "WHCIS (115 Sycamore St)"  &
+                         schools$school != "Edgerly Education Center" &
+                         schools$school != "Brown School",], 
+          aes(color = school),
+          size = 3) +
+  scale_color_manual(values = c("darkorchid4",
+                                "cadetblue4",
+                                "royalblue4",
+                                "seagreen4",
+                                "tomato3",
+                                "gray60"),
+                     name = "") +
+  new_scale_color() +
+  theme_void() +
+    annotate("text", x = -71.135, y = 42.3735, hjust = 0, size = 3, 
+           label = "Cartolight basemap based on data from Open Street Map\n(c) OpenStreetMap contributors.") +
+  theme(legend.background = element_rect(fill = NA,
+                                         linetype = "blank"))
+```
+
+This map illustrates walking times to the nearest school under Option 04,
+which would involve leaving both the Brown school the Winter Hill
+school at 115 Sycamore St vacant. A new school would be built at Trum
+field to accommodate the lost capacity from both schools.
+
+## Summary statistics {.tabset}
+
+```{r, echo=FALSE}
+
+```
+
+The decision to leave two centrally-located school vacant would have important
+implications for the time required for Somerville students to walk to school.
+This is particularly true for students for whom Brown or Winter Hill would
+otherwise have been the closest school.
+
+```{r, echo =FALSE}
+summary <- tibble(Scenario = factor(rep(c("Prior, Option 01 + 01A",
+                        "Existing (Winter Hill at Edgerly)",
+                        "Options 01 + 01B, 02, and 03",
+                        "Option 04"),3),
+                        levels = c("Prior, Option 01 + 01A",
+                                   "Existing (Winter Hill at Edgerly)",
+                                   "Options 01 + 01B, 02, and 03",
+                                   "Option 04")),
+       Population = c(rep("All K-5\nstudents in\nSomerville",4),
+                      rep("K-5 students\nfor whom\n115 Sycamore St\nis the closest school",4),
+                      rep("K-5 students\nfor whom Brown is\nthe closest school",4)),
+       `Average walking time to the closest school (minutes)` =
+         c(mean(student_points$min_time_prior),
+           mean(student_points$min_time_now),
+           mean(student_points$min_time_01_01B),
+           mean(student_points$min_time_04),
+           mean(student_points$min_time_prior[student_points$close_school_prior ==1]),
+           mean(student_points$min_time_now[student_points$close_school_prior ==1]),
+           mean(student_points$min_time_01_01B[student_points$close_school_prior ==1]),
+           mean(student_points$min_time_04[student_points$close_school_prior ==1]),
+           mean(student_points$min_time_prior[student_points$close_school_prior ==4]),
+           mean(student_points$min_time_now[student_points$close_school_prior ==4]),
+           mean(student_points$min_time_01_01B[student_points$close_school_prior ==4]),
+           mean(student_points$min_time_04[student_points$close_school_prior ==4])),
+       `Number of students with less than a\n10-minute walk to the closest school` = 
+         c(sum(student_points$min_time_prior < 11),
+           sum(student_points$min_time_now < 11),
+           sum(student_points$min_time_01_01B < 11),
+           sum(student_points$min_time_04 < 11),
+           sum(student_points$min_time_prior[student_points$close_school_prior ==1]<11),
+           sum(student_points$min_time_now[student_points$close_school_prior ==1]<11),
+           sum(student_points$min_time_01_01B[student_points$close_school_prior ==1]<11),
+           sum(student_points$min_time_04[student_points$close_school_prior ==1]<11),
+           sum(student_points$min_time_prior[student_points$close_school_prior ==4]<11),
+           sum(student_points$min_time_now[student_points$close_school_prior ==4]<11),
+           sum(student_points$min_time_01_01B[student_points$close_school_prior ==4]<11),
+           sum(student_points$min_time_04[student_points$close_school_prior ==4]<11)),
+       `Number of students with more than a\n20-minute walk to the closest school` = 
+         c(sum(student_points$min_time_prior > 20),
+           sum(student_points$min_time_now > 20),
+           sum(student_points$min_time_01_01B > 20),
+           sum(student_points$min_time_04 > 20),
+           sum(student_points$min_time_prior[student_points$close_school_prior ==1]> 20),
+           sum(student_points$min_time_now[student_points$close_school_prior ==1]> 20),
+           sum(student_points$min_time_01_01B[student_points$close_school_prior ==1]> 20),
+           sum(student_points$min_time_04[student_points$close_school_prior ==1]> 20),
+           sum(student_points$min_time_prior[student_points$close_school_prior ==4]> 20),
+           sum(student_points$min_time_now[student_points$close_school_prior ==4]> 20),
+           sum(student_points$min_time_01_01B[student_points$close_school_prior ==4]> 20),
+           sum(student_points$min_time_04[student_points$close_school_prior ==4]> 20))) 
+```
+
+
+### Average walking times
+
+```{r, echo=FALSE}
+ggplot(summary) +
+  geom_bar(aes(x = Population,
+               y = `Average walking time to the closest school (minutes)`,
+               fill = Scenario),
+               stat = "identity",
+               position = "dodge") +
+  scale_fill_brewer(type = "qual") +
+  theme_minimal()
+
+```
+
+With the distribution of schools in Somerville prior to the closure of Winter Hill,
+the average time it would take a K-5 student in Somerville to walk to the nearest 
+school was about 11 minutes. This has increased with the closure of Winter Hill. 
+All of the options under consideration, with the exception of the 01+01A (which
+would keep all schools at their prior locations), would increase average walking
+distances relative to the period before Winter Hill closed.
+
+Average walking times for students who are currently closest to Brown or Winter
+Hill would increase by more than 50 percent in scenarios where their respective
+schools are left vacant.
+
+### 10-minute walks
+
+```{r, echo=FALSE}
+ggplot(summary) +
+  geom_bar(aes(x = Population,
+               y = `Number of students with less than a\n10-minute walk to the closest school`,
+               fill = Scenario),
+               stat = "identity",
+               position = "dodge") +
+  scale_fill_brewer(type = "qual") +
+  theme_minimal()
+```
+
+Just under 1200 K-5 students in Somerville (about 45 percent of all K-5 students) 
+lived within a ten-minute walk of a school before the closure of Winter Hill. 
+Winter Hill School was the closest school for more than a quarter of all students
+within ten minutes of a school, and Brown was the closest school for just over ten 
+percent.
+
+Now that the Winter Hill School has closed, only about 20 students for whom the \
+Winter Hill School at 115 Sycamore St was the closest school live within ten 
+minutes of a school. This number would increase to about 60 students if a new 
+School were built at Trum Field, which is about a fifth of the number who live
+within 10 minutes of 115 Sycamore St.
+
+A negligible number of students (fewer than ten) for whom Brown is currently the
+closest school would be able to walk to any school within ten minutes if the 
+Brown school were left vacant and no new school were built. This number would increase
+to about 45 students if a new school were built at Trum Field.
+
+### 20-minute walks
+
+```{r, echo=FALSE}
+ggplot(summary) +
+  geom_bar(aes(x = Population,
+               y = `Number of students with more than a\n20-minute walk to the closest school`,
+               fill = Scenario),
+               stat = "identity",
+               position = "dodge") +
+  scale_fill_brewer(type = "qual") +
+  theme_minimal()
+```
+
+Prior to the closure of the school at 115 Sycamore St, only about three dozen
+K-5 students in Somerville lived more than a 20-minute walk from a school serving 
+K-5 students. The closure of Winter Hill School has increased this number by
+about 270 percent.
