@@ -34,7 +34,7 @@ schools <- tibble(school = factor(c("WHCIS (115 Sycamore Street)",
                           -71.08622473784972)) |>
   st_as_sf(coords = c("lon", "lat"), crs = "WGS84")
 
-student_points <- st_read(here("student-points-2.geojson")) |>
+student_points <- st_read(here("student_points.geojson")) |>
   st_transform("WGS84")
 
 points <- student_points |>
@@ -109,4 +109,4 @@ points <- points |>
   left_join(tt_01_01B) |>
   left_join(tt_04)
 
-st_write(points, here("student-walk-times.geojson"))
+st_write(points, here("student-walk-times.geojson"), append = FALSE)

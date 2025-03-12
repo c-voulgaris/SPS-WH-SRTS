@@ -17,13 +17,12 @@ library(tidycensus)
 library(sf)
 library(here)
 library(tigris)
+library(leaflet)
 ```
 
 
 Public data from the American Community Survey includes the number of students
 enrolled in school, disaggregated by grade level, at the census block-group level.
-Data are further disaggregated by race/ethnicity and, at the tract level, by 
-poverty status.
 
 The number of households in each census block is available from the 2020 Census.
 
@@ -31,19 +30,19 @@ I've simulated the residential locations of students by:
 
 1. Gathering the number of occupied housing units in each census block 
 from the 2020 Census
-2. Calculating the ratio of non-Hispanic white students to occupied housing units
-and the ratio of Hispanic or non-white students to occupied housing units in 
+2. Calculating the ratio of students to occupied housing units in 
 each census block group.
-3. Calculating the ratio of students in households above and below the poverty level
-to the number of occupied housing units in each census tract.
-4. Calculating the number of students in each category for each census block, 
+3. Calculating the number of students for each census block, 
 based on the relevant ratio for the tract or block group containing the block.
-5. Generate the appropriate number of points in each category for each census block,
+4. Generate the appropriate number of points in each category for each census block,
 randomly distributed within each census block.
 
 ## 1. Number of occupied housing units in each census block.
 
-```{r, warning=FALSE, error=FALSE, message=FALSE, results='hide'}
+I am filtering the set of census blocks to only include those with at least 
+one occupied housing unit.
+
+```{r count-occupied, warning=FALSE, error=FALSE, message=FALSE, results='hide'}
 somerville <- places(state = "MA") |>
   dplyr::filter(GEOID == "2562535") 
 
@@ -59,30 +58,44 @@ block_centers_somer <- st_centroid(block_hu) |>
 block_hu_somer <- block_hu |>
   filter(GEOID %in% block_centers_somer$GEOID) |>
   mutate(bg_geoid = substr(GEOID, 1, 12),
-         tract_geoid = substr(GEOID, 1, 11)) 
+         tract_geoid = substr(GEOID, 1, 11))  |>
+  filter(value > 0) |>
+  st_transform("WGS84")
 ```
 
-## 2. Ratio of non-Hispanic white students and non-white or Hispanic studnets to occupied housing units in each census block group.
+And here is a map showing the number of occupied housing units in each block
+with at least one.
 
-```{r, message=FALSE, results='hide'}
-bg_vars <- c(nh_white_k = "B14007H_004",
-             nh_white_1 = "B14007H_005",
-             nh_white_2 = "B14007H_006",
-             nh_white_3 = "B14007H_007",
-             nh_white_4 = "B14007H_008",
-             nh_white_5 = "B14007H_009",
-             nh_white_6 = "B14007H_010",
-             nh_white_7 = "B14007H_011",
-             nh_white_8 = "B14007H_012",
-             total_k = "B14007_004",
+```{r map-occupied}
+my_pal <- colorNumeric(
+  palette = "viridis",
+  domain = block_hu_somer$value)
+
+block_labels <- paste0(block_hu_somer$value,
+                        " occupied housing units") |>
+  lapply(htmltools::HTML)
+
+leaflet(block_hu_somer) |>
+  addProviderTiles(provider = "CartoDB.Positron") |>
+  addPolygons(weight = 1,
+              color = "white",
+              fillColor = ~my_pal(value),
+              fillOpacity = 0.3,
+              highlightOptions = highlightOptions(weight = 3,
+                                                  fillOpacity = 0.5),
+              label = block_labels)
+```
+
+
+## 2. Ratio of K-5 students to occupied housing units in each census block group.
+
+```{r pct-students, message=FALSE, warning=FALSE, results='hide'}
+bg_vars <- c(total_k = "B14007_004",
              total_1 = "B14007_005",
              total_2 = "B14007_006",
              total_3 = "B14007_007",
              total_4 = "B14007_008",
              total_5 = "B14007_009",
-             total_6 = "B14007_010",
-             total_7 = "B14007_011",
-             total_8 = "B14007_012",
              hus = "B25002_002")
 
 bgs <- get_acs(geography = "block group",
@@ -90,96 +103,130 @@ bgs <- get_acs(geography = "block group",
                county = "Middlesex",
                variables = bg_vars,
                output = "wide",
-               year = 2021) |>  
-  mutate(nh_white_total = nh_white_kE +
-                          nh_white_1E +
-                          nh_white_2E +
-                          nh_white_3E +
-                          nh_white_5E +
-                          nh_white_6E +
-                          nh_white_7E +
-                          nh_white_8E,
-         all_total = total_kE +
+               year = 2023,
+               geometry = TRUE,
+               progress_bar = FALSE) |>  
+  mutate(students = total_kE +
                      total_1E +
                      total_2E +
                      total_3E +
-                     total_5E +
-                     total_6E +
-                     total_7E +
-                     total_8E) |>
-  mutate(white_stu_per_hu = nh_white_total / husE,
-         non_white_stu_per_hu = (all_total - nh_white_total) / husE) |>
+                     total_4E +
+                     total_5E) |>
+  mutate(stu_per_hu = students / husE) |>
   rename(bg_geoid = GEOID) |>
-  select(-NAME)
+  select(-NAME) 
+
+bg_centers_somer <- st_centroid(bgs) |>
+  st_filter(somerville)
+
+bgs_somer <- bgs |>
+  filter(bg_geoid %in% bg_centers_somer$bg_geoid) |>
+  filter(students > 0) |>
+  st_transform("WGS84")
 ```
 
-## 2. Ratio of students above and below the poverty level to occupied housing units in each census tract.
+Let's see a map of the block groups in which the census estimates that there 
+are K-5 students.
 
-```{r, message=FALSE, results='hide'}
-tract_vars <- c(pov_gk = "B14006_005",
-                pov_g1_4 = "B14006_006",
-                pov_g5_8 = "B14006_007",
-                no_pov_gk = "B14006_015",
-                no_pov_g1_4 = "B14006_016",
-                no_pov_g5_8 = "B14006_017",
-                hus = "B25002_002")
+```{r map-pct-students}
+my_pal <- colorNumeric(
+  palette = "viridis",
+  domain = bgs_somer$students)
 
-tracts <- get_acs(geography = "tract",
-                  state = "MA",
-                  county = "Middlesex",
-                  variables = tract_vars,
-                  output = "wide",
-                  year = 2021) |>  
-  mutate(pov_total = pov_gkE +
-                     pov_g1_4E +
-                     pov_g5_8E,
-         no_pov_total = no_pov_gkE +
-                        no_pov_g1_4E +
-                        no_pov_g5_8E) |>
-  mutate(pov_stu_per_hu = pov_total / husE,
-         non_pov_stu_per_hu = no_pov_total / husE) |>
-  rename(tract_geoid = GEOID) |>
-  select(-NAME)
+stu_block_labels <- paste0(bgs_somer$husE,
+                           " occupied housing units<br/>",
+                           bgs_somer$students,
+                           " K-5 students (estimated)<br/>",
+                           formatC(bgs_somer$stu_per_hu, 
+                                   format = "f", 
+                                   digits = 2),
+                           " estimated K-5 students per<br/>",
+                           "         occuplied housing unit") |>
+  lapply(htmltools::HTML)
+
+leaflet(bgs_somer) |>
+  addProviderTiles(provider = "CartoDB.Positron") |>
+  addPolygons(weight = 1,
+              color = "white",
+              fillColor = ~my_pal(students),
+              fillOpacity = 0.3,
+              highlightOptions = highlightOptions(weight = 3,
+                                                  fillOpacity = 0.5),
+              label = stu_block_labels)
 ```
 
-## 4. Number of students in each category for each census block
 
-```{r, message=FALSE, results='hide'}
+## 3. Number of students in each census block
+
+```{r calc-students, message=FALSE, results='hide'}
+bgs_somer <- st_drop_geometry(bgs_somer)
+
 students <- block_hu_somer |>
-  left_join(bgs) |>
-  mutate(white_students = round(white_stu_per_hu * value, digits = 0),
-         non_white_students = round(non_white_stu_per_hu * value, digits = 0)) |>
+  left_join(bgs_somer) |>
+  mutate(students = round(stu_per_hu * value, digits = 0)) |>
   rename(block_geoid = GEOID,
          total_hus = value) |>
-  left_join(tracts, by="tract_geoid") |>
-  mutate(pov_students = round(pov_stu_per_hu * total_hus, digits = 0),
-         non_pov_students = round(non_pov_stu_per_hu * total_hus, digits = 0)) |>
-  select(block_geoid, bg_geoid, tract_geoid, total_hus, white_students, 
-         non_white_students, pov_students, non_pov_students)
+  select(block_geoid, 
+         bg_geoid, 
+         tract_geoid, 
+         total_hus, 
+         stu_per_hu, 
+         students) |>
+  filter(students > 0)
 ```
 
-## 5. Generate points
+And here is the distribution of students on a map:
 
-``` {r, message=FALSE, results='hide'}
-student_points_white <- st_sample(students, 
-                                    size = students$white_students) |>
-   st_as_sf() |>
-  mutate(`race` = "Non-Hispanic white student")
+```{r map-students}
+my_pal <- colorNumeric(
+  palette = "viridis",
+  domain = students$total_students)
 
-student_points_non_white <- st_sample(students, 
-                                    size = students$non_white_students) |>
-   st_as_sf() |>
-  mutate(`race` = "Non-white or Hispanic student")
+stu_block_labels <- paste0(students$total_hus,
+                           " total occupied housing units<br/>",
+                           "(on this block)<br/><br/>",
+                           formatC(students$stu_per_hu, 
+                                   format = "f", 
+                                   digits = 2),
+                           " K-5 students per occuplied housing unit<br/>",
+                           "(in this block group)<br/><br/>",
+                           students$students,
+                           " estimated K-5 students on this block") |>
+  lapply(htmltools::HTML)
 
-student_points <- rbind(student_points_white, student_points_non_white) |>
-  st_join(students) |>
-  mutate(total_students = white_students + non_white_students) |>
-  mutate(pct_pov = pov_students / (pov_students + non_pov_students)) |>
-  mutate(random = runif(n = n(), min = 0, max = 1)) |>
-  mutate(poverty = random < pct_pov) |>
-  replace_na(list(poverty = 0)) |>
-  select(race, poverty)
+leaflet(students) |>
+  addProviderTiles(provider = "CartoDB.Positron") |>
+  addPolygons(weight = 1,
+              color = "white",
+              fillColor = ~my_pal(students),
+              fillOpacity = 0.3,
+              highlightOptions = highlightOptions(weight = 3,
+                                                  fillOpacity = 0.5),
+              label = stu_block_labels)
+```
+
+## 4. Generate points
+
+And now we can generate a set of locations that's consistent with the 
+distribution in the map above.
+
+``` {r make-pts, message=FALSE, results='hide'}
+student_points <- st_sample(students, 
+                            size = students$students) |>
+   st_as_sf() 
 
 st_write(student_points, here("student_points.geojson"), delete_dsn = TRUE)
 ```
+
+Here is how those points look on a map.
+
+```{r map-pts}
+leaflet(student_points) |>
+  addProviderTiles(provider = "CartoDB.Positron") |>
+  addCircles(color = NA,
+             radius = 3,
+             fillColor = "purple",
+             fillOpacity = 0.7)
+```
+
 
