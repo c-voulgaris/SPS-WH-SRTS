@@ -500,8 +500,8 @@ ggplot(summary) +
 With the distribution of schools in Somerville prior to the closure of Winter Hill,
 the average time it would take a K-5 student in Somerville to walk to the nearest 
 school was about 11 minutes. This has increased with the closure of Winter Hill. 
-All of the options under consideration, with the exception of the 01+01A (which
-would keep all schools at their prior locations), would increase average walking
+All of the options under consideration, with the exception reopening Winter Hill
+at Sycamore Street and keeping a school on the Brown site, would increase average walking
 distances relative to the period before Winter Hill closed.
 
 Average walking times for students who are currently closest to Brown or Winter
@@ -521,7 +521,7 @@ ggplot(summary) +
   theme_minimal()
 ```
 
-Just under 1200 K-5 students in Somerville (about 45 percent of all K-5 students) 
+A little over 950 K-5 students in Somerville (about 45 percent of all K-5 students) 
 lived within a ten-minute walk of a school before the closure of Winter Hill. 
 Winter Hill School was the closest school for more than a quarter of all students
 within ten minutes of a school, and Brown was the closest school for just over ten 
@@ -529,14 +529,14 @@ percent.
 
 Now that the Winter Hill School has closed, only about 20 students for whom the \
 Winter Hill School at 115 Sycamore St was the closest school live within ten 
-minutes of a school. This number would increase to about 60 students if a new 
-School were built at Trum Field, which is about a fifth of the number who live
+minutes of a school. This number would increase to about 55 students if a new 
+School were built at Trum Field, which is about a quarter of the number who live
 within 10 minutes of 115 Sycamore St.
 
 A negligible number of students (fewer than ten) for whom Brown is currently the
 closest school would be able to walk to any school within ten minutes if the 
 Brown school were left vacant and no new school were built. This number would increase
-to about 45 students if a new school were built at Trum Field.
+to about 50 students if a new school were built at Trum Field.
 
 ### 20-min walks
 
@@ -551,7 +551,7 @@ ggplot(summary) +
   theme_minimal()
 ```
 
-Prior to the closure of the school at 115 Sycamore St, only about three dozen
+Prior to the closure of the school at 115 Sycamore St, only about thirty
 K-5 students in Somerville lived more than a 20-minute walk from a school serving 
 K-5 students. The closure of Winter Hill School has increased this number by
-about 270 percent.
+about four times.

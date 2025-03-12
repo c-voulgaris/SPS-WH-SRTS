@@ -34,7 +34,9 @@ from the 2020 Census
 each census block group.
 3. Calculating the number of students for each census block, 
 based on the relevant ratio for the tract or block group containing the block.
-4. Generate the appropriate number of points in each category for each census block,
+4. Scale the number of estimated students so that the total is equal to the total
+K-5 enrollment in Somerville public schools.
+5. Generate the appropriate number of points in each category for each census block,
 randomly distributed within each census block.
 
 ## 1. Number of occupied housing units in each census block.
@@ -175,6 +177,23 @@ students <- block_hu_somer |>
   filter(students > 0)
 ```
 
+
+## 4. Scale to total enrollment
+
+There are currently 2211 total K-5 students enrolled in Somerville Public 
+Schools (https://profiles.doe.mass.edu/profiles/student.aspx?orgcode=02740000&orgtypecode=5), 
+and this method generates more than that, probably due to a combination of 
+rounding and sampling error in the American Community Survey (and potentially also
+due to the share of Somerville students who attend private schools). I will 
+scale the number of students in each block so that the total number of students
+is approximately equal to the official enrollment number.
+
+```{r}
+students <- students |>
+  mutate(students = round(students * 2211/(sum(students))))
+```
+
+
 And here is the distribution of students on a map:
 
 ```{r map-students}
@@ -205,7 +224,7 @@ leaflet(students) |>
               label = stu_block_labels)
 ```
 
-## 4. Generate points
+## 5. Generate points
 
 And now we can generate a set of locations that's consistent with the 
 distribution in the map above.
